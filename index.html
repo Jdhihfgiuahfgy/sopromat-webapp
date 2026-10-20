@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Конструктор задачи</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+  <section class="card">
+    <div class="seg" id="kind">
+      <button data-v="beam">Изгиб балки</button>
+      <button data-v="axial">Растяжение</button>
+      <button data-v="torsion">Кручение</button>
+    </div>
+    <label class="field"><span>Название</span><input id="title" placeholder="Задача 4.6, вариант 18"></label>
+    <div class="row-inline">
+      <span class="muted">Нагрузки заданы в</span>
+      <div class="seg small" id="units">
+        <button data-v="kN">кН</button>
+        <button data-v="t">тоннах</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card sticky-preview">
+    <svg id="preview" viewBox="0 0 360 170" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="status" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>Данные варианта</h2>
+    <p class="hint">Длины можно задавать через a: <b>b = 2a</b>. Нагрузки — числа из таблицы.</p>
+    <div id="vars"></div>
+    <div class="actions">
+      <button class="ghost" id="addVar">+ величина</button>
+      <button class="ghost" id="tableVars">Как в таблице 2</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Участки <span class="muted">(слева направо)</span></h2>
+    <div id="segments"></div>
+    <div class="actions"><button class="ghost" id="addSeg">+ участок</button></div>
+  </section>
+
+  <section class="card">
+    <h2>Опоры и шарниры</h2>
+    <div id="supports"></div>
+    <div class="actions"><button class="ghost" id="addSup">+ опора</button></div>
+  </section>
+
+  <section class="card">
+    <h2>Нагрузки</h2>
+    <p class="hint">«?» в значении — неизвестная, найдётся из равновесия (стержень, вал).</p>
+    <div id="loads"></div>
+    <div class="actions"><button class="ghost" id="addLoad">+ нагрузка</button></div>
+  </section>
+
+  <section class="card">
+    <h2>Материал и условия</h2>
+    <div id="material" class="grid2"></div>
+  </section>
+
+  <div class="actions bottom">
+    <button class="ghost" id="reset">Очистить</button>
+    <button class="primary" id="solveBtn">Решить</button>
+  </div>
+  <pre id="debug" hidden></pre>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
