@@ -187,9 +187,10 @@ function dirOptions(kind, type) {
 }
 
 const SUPPORT_TYPES = {
-  beam: [["fixed", "Заделка"], ["pin", "Шарнирно-неподвижная"], ["roller", "Шарнирно-подвижная"], ["hinge", "Шарнир (промежуточный)"]],
-  axial: [["fixed", "Заделка"]],
-  torsion: [["fixed", "Заделка"]],
+  beam: [["fixed", "Жёсткая заделка"], ["pin", "Шарнирно-неподвижная опора"], ["roller", "Шарнирно-подвижная опора"],
+    ["slider", "Скользящая заделка (ползун)"], ["hinge", "Промежуточный шарнир"]],
+  axial: [["fixed", "Жёсткая заделка"], ["pin", "Шарнирно-неподвижная опора"]],
+  torsion: [["fixed", "Жёсткая заделка"], ["bearing", "Подшипник (вращению не мешает)"]],
 };
 
 const MATERIAL_FIELDS = {
@@ -221,11 +222,19 @@ function render() {
     delBtn(() => removeSegment(i)))));
 
   const sups = $("supports"); sups.innerHTML = "";
-  state.supports.forEach((s, i) => sups.append(el("div", { class: "item sup-row" },
-    select(SUPPORT_TYPES[state.kind], s.type, x => { s.type = x; }),
-    select(state.kind === "beam" ? nodeOptions() : [["0", LETTERS[0]], [String(state.segments.length), LETTERS[state.segments.length]]],
-      String(s.node), x => { s.node = +x; }),
-    delBtn(() => state.supports.splice(i, 1)))));
+  state.supports.forEach((s, i) => {
+    // заделки и опоры стержня — только на концах; шарнир — только внутри; подшипник и опоры балки — где угодно
+    const n = state.segments.length;
+    const ends = [["0", LETTERS[0]], [String(n), LETTERS[n]]];
+    let opts = nodeOptions();
+    if (["fixed", "slider"].includes(s.type) || (state.kind === "axial")) opts = ends;
+    if (s.type === "hinge") opts = nodeOptions().slice(1, -1);
+    if (!opts.some(o => o[0] === String(s.node)) && opts.length) s.node = +opts[0][0];
+    sups.append(el("div", { class: "item sup-row" },
+      select(SUPPORT_TYPES[state.kind], s.type, x => { s.type = x; }),
+      select(opts.length ? opts : nodeOptions(), String(s.node), x => { s.node = +x; }),
+      delBtn(() => state.supports.splice(i, 1))));
+  });
 
   const loads = $("loads"); loads.innerHTML = "";
   state.loads.forEach((l, i) => {
@@ -415,6 +424,15 @@ function draw() {
       for (let k = -10; k <= 10; k += 5) box.append(ink({ d: `M${x + k},${gy} l-4,4`, "stroke-width": 0.7 }));
     } else if (s.type === "hinge") {
       box.append(svg("circle", { cx: x, cy: Y, r: 4, fill: "var(--card)", class: "ink", "stroke-width": 1.4 }));
+    } else if (s.type === "slider") {
+      const side = s.node === 0 ? -1 : 1, wx = x + side * 10;
+      box.append(ink({ d: `M${wx},${Y - 18} L${wx},${Y + 18}`, "stroke-width": 2.2 }));
+      for (let k = -16; k <= 18; k += 6) box.append(ink({ d: `M${wx},${Y + k} l${side * 6},-6`, "stroke-width": 0.8 }));
+      for (const dy of [-7, 7]) box.append(svg("circle", { cx: x + side * 5, cy: Y + dy, r: 3, fill: "var(--card)", class: "ink" }));
+    } else if (s.type === "bearing") {
+      box.append(svg("rect", { x: x - 6, y: Y + 15, width: 12, height: 5, fill: "none", class: "ink" }));
+      box.append(svg("rect", { x: x - 6, y: Y - 20, width: 12, height: 5, fill: "none", class: "ink" }));
+      box.append(ink({ d: `M${x - 10},${Y + 20} l20,0` }));
     }
   });
   // нагрузки
@@ -561,7 +579,12 @@ function wire() {
 }
 
 (async function init() {
-  if (tg) { tg.ready(); tg.expand(); }
+  if (tg) {
+    tg.ready(); tg.expand();
+    // выпадающие списки рисуются системой: подсказываем ей тему Telegram, иначе белый текст на белом
+    if (tg.colorScheme) document.documentElement.style.colorScheme = tg.colorScheme;
+    if (tg.onEvent) tg.onEvent("themeChanged", () => { document.documentElement.style.colorScheme = tg.colorScheme; });
+  }
   wire();
   let model = null;
   try { model = await decodeHash(); } catch (e) { console.warn("hash", e); }

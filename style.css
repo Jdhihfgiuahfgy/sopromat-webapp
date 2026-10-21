@@ -71,3 +71,6 @@ button.del { background: none; color: var(--muted); padding: 4px 6px; font-size:
 .node-row .tag, .node3-row .tag { text-align: center; }
 .variant-input { width: 90px; }
 [hidden] { display: none !important; }
+/* выпадающие списки: явные цвета пунктов (в тёмной теме Telegram иначе белый текст на белом) */
+select option, select optgroup { background-color: var(--card); color: var(--text); }
+select { background-color: var(--card); }

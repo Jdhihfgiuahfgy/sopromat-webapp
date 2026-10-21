@@ -70,6 +70,8 @@ function nodeOpts(n) {
   return out;
 }
 
+const FRAME_SUPPORTS = [["fixed", "Жёсткая заделка"], ["pin", "Шарнирно-неподвижная опора"], ["roller", "Шарнирно-подвижная опора"],
+  ["slider", "Скользящая заделка (ползун)"], ["hinge", "Промежуточный шарнир"]];
 const FRAME_DIRS = [["down", "↓ вниз"], ["up", "↑ вверх"], ["right", "→ вправо"], ["left", "← влево"]];
 const AXIS_DIRS = [["-z", "−z (вниз)"], ["+z", "+z (вверх)"], ["+x", "+x (вправо)"], ["-x", "−x (влево)"], ["+y", "+y (вглубь)"], ["-y", "−y (к нам)"]];
 const SHAPES = [["line", "прямая"], ["parabola_left", "парабола, вершина в начале"], ["parabola_right", "парабола, вершина в конце"]];
@@ -94,11 +96,13 @@ function renderExtra() {
   const sups = $("supports"); sups.innerHTML = "";
   if (k === "frame") {
     state.supports.forEach((s, i) => sups.append(el("div", { class: "item load-row" },
-      select([["fixed", "Заделка"], ["pin", "Шарнирно-неподвижная"], ["roller", "Шарнирно-подвижная"]], s.type, v => { s.type = v; }),
+      select(FRAME_SUPPORTS, s.type, v => { s.type = v; }),
       delBtn(() => state.supports.splice(i, 1)),
       el("div", { class: "wide" },
         select(nodeOpts(state.nodes.length), String(s.node), v => { s.node = +v; }),
-        s.type === "roller" ? select([["y", "реакция ↕ (вертикальная)"], ["x", "реакция ↔ (горизонтальная)"]], s.dir || "y", v => { s.dir = v; }) : el("span")))));
+        s.type === "roller" ? select([["y", "реакция ↕ (вертикальная)"], ["x", "реакция ↔ (горизонтальная)"]], s.dir || "y", v => { s.dir = v; })
+          : s.type === "slider" ? select([["y", "держит ↕ и момент (скользит ↔)"], ["x", "держит ↔ и момент (скользит ↕)"]], s.dir || "y", v => { s.dir = v; })
+            : el("span")))));
   } else if (k === "spatial") {
     const n = state.nodes.length;
     state.supports = [{ type: "fixed", node: state.supports[0] && state.supports[0].node === n - 1 ? n - 1 : 0 }];
@@ -233,8 +237,11 @@ function analyzeExtra() {
   const pts = state.nodes.map((n, i) => [val(n.x, "x узла " + LETTERS[i]), val(n.y, "y узла " + LETTERS[i]), k === "spatial" ? val(n.z, "z узла " + LETTERS[i]) : 0]);
   if (k === "frame" && state.members.length !== state.nodes.length - 1) errors.push("стержней должно быть на один меньше, чем узлов (рама без замкнутых контуров)");
   if (k === "frame") {
-    const unk = state.supports.reduce((s, x) => s + (x.type === "fixed" ? 3 : x.type === "pin" ? 2 : 1), 0);
-    if (unk !== 3) errors.push("у рамы должно быть 3 опорные связи (сейчас " + unk + "): заделка или шарнир + каток");
+    const links = { fixed: 3, pin: 2, slider: 2, roller: 1, hinge: 0 };
+    const unk = state.supports.reduce((s, x) => s + (links[x.type] || 0), 0);
+    const deg = v => state.members.filter(m => m.a === v || m.b === v).length;
+    const need = 3 + state.supports.filter(x => x.type === "hinge").reduce((s, x) => s + Math.max(0, deg(x.node) - 1), 0);
+    if (unk !== need) errors.push("опорных связей " + unk + ", а нужно " + need + " (3 + по одной на каждый шарнир)");
   }
   if (k === "spatial" && !state.sections.length) errors.push("добавьте сечения I–I, II–II");
   if (!state.loads.length) errors.push("добавьте нагрузки");
@@ -270,6 +277,16 @@ function drawExtra(box) {
       box.append(svg("path", { class: "ink", d: `M${t[0] - 12},${t[1] + 2} L${t[0] + 12},${t[1] + 2}`, "stroke-width": 2.2 }));
       for (let d = -10; d <= 12; d += 5) box.append(svg("path", { class: "ink", d: `M${t[0] + d},${t[1] + 2} l-4,6`, "stroke-width": 0.8 }));
     } else {
+      if (s.type === "hinge") {
+        box.append(svg("circle", { cx: t[0], cy: t[1], r: 4.5, fill: "var(--card)", class: "ink", "stroke-width": 1.5 }));
+        return;
+      }
+      if (s.type === "slider") {
+        box.append(svg("path", { class: "ink", d: `M${t[0] - 12},${t[1] + 12} L${t[0] + 12},${t[1] + 12}`, "stroke-width": 2.2 }));
+        for (const dx of [-5, 5]) box.append(svg("circle", { cx: t[0] + dx, cy: t[1] + 6, r: 3, fill: "var(--card)", class: "ink" }));
+        for (let d = -10; d <= 12; d += 5) box.append(svg("path", { class: "ink", d: `M${t[0] + d},${t[1] + 12} l-4,6`, "stroke-width": 0.8 }));
+        return;
+      }
       box.append(svg("path", { class: "ink", d: `M${t[0]},${t[1] + 1} l-7,13 l14,0 z`, "stroke-width": 1.2 }));
       if (s.type === "roller") box.append(svg("path", { class: "ink", d: `M${t[0] - 9},${t[1] + 17} l18,0` }));
     }
