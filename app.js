@@ -3,24 +3,29 @@
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const LETTERS = "ABCDEFGHKLNSTUVW";
-const STORE_KEY = "sopromat-model-v1";
+const STORE_KEY = "sopromat-model-v2";
 
 const DEFAULTS = {
   beam: { material: { sigma: "160" } },
   axial: { material: { sigma: "160", E: "2e5" } },
   torsion: { material: { tau: "80", G: "8e4" } },
+  frame: { material: {} },
+  spatial: { material: {} },
+  inverse: { material: {} },
 };
 
 let state = blank("beam");
 
 function blank(kind) {
-  return {
+  const s = {
     kind, title: "", units: "kN",
     vars: [{ name: "a", value: "2" }],
     segments: [{ length: "a", k: "1" }],
     supports: [], loads: [],
     material: { ...DEFAULTS[kind].material },
+    nodes: [], members: [], sections: [], mseg: [],
   };
+  return EXTRA.includes(kind) ? blankExtra(kind, s) : s;
 }
 
 // ---------- калькулятор выражений (как в sopromat/expr.py) ----------
@@ -194,7 +199,7 @@ const MATERIAL_FIELDS = {
 };
 
 function render() {
-  document.querySelectorAll("#kind button").forEach(b => b.classList.toggle("on", b.dataset.v === state.kind));
+  $("kindSel").value = state.kind;
   document.querySelectorAll("#units button").forEach(b => b.classList.toggle("on", b.dataset.v === state.units));
   $("title").value = state.title;
 
@@ -203,6 +208,9 @@ function render() {
     input(v.name, "имя (P1, q, a)", x => { v.name = x.trim(); }),
     input(v.value, "значение", x => { v.value = x; }),
     delBtn(() => state.vars.splice(i, 1)))));
+
+  showCards();
+  if (EXTRA.includes(state.kind)) { renderExtra(); draw(); return; }
 
   const segs = $("segments"); segs.innerHTML = "";
   const kname = state.kind === "axial" ? "A ×" : "d ×";
@@ -289,6 +297,11 @@ function toModel() {
     if (o.value === "?" && l.label) o.label = l.label.trim();
     return o;
   });
+  if (EXTRA.includes(state.kind)) {
+    const base = { kind: state.kind, title: state.title.trim(), units: state.units, vars };
+    if (state.from_photo) base.from_photo = true;
+    return extraToModel(base);
+  }
   const material = {};
   MATERIAL_FIELDS[state.kind].forEach(([k]) => { if (String(state.material[k] || "").trim()) material[k] = String(state.material[k]).trim(); });
   const m = {
@@ -306,6 +319,8 @@ function fromModel(m) {
   s.title = m.title || "";
   s.units = m.units === "t" ? "t" : "kN";
   s.vars = Object.entries(m.vars || {}).map(([name, value]) => ({ name, value: String(value) }));
+  s.from_photo = !!m.from_photo;
+  if (EXTRA.includes(m.kind)) return extraFromModel(m, s);
   s.segments = (m.segments || []).map(x => ({ length: String(x.length), k: String(x.k || "1") }));
   if (!s.segments.length) s.segments = [{ length: "a", k: "1" }];
   s.supports = (m.supports || []).map(x => ({ type: x.type, node: +x.node }));
@@ -364,6 +379,7 @@ function draw() {
   box.firstChild.innerHTML =
     '<marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
     '<path d="M0,0 L8,4 L0,8 z" fill="#c0392b"/></marker>';
+  if (EXTRA.includes(state.kind)) { drawExtra(box); return; }
   const { xs, loads, errors } = analyze();
   const L = xs[xs.length - 1] || 1;
   const X = x => 30 + (x / L) * 300;
@@ -471,7 +487,7 @@ function draw() {
 // ---------- отправка ----------
 
 function solve() {
-  const { errors } = analyze();
+  const { errors } = EXTRA.includes(state.kind) ? analyzeExtra() : analyze();
   if (errors.length) { alertMsg("Исправьте схему: " + errors[0]); return; }
   const data = JSON.stringify(toModel());
   if (new Blob([data]).size > 4000) { alertMsg("Слишком большая схема для отправки (больше 4 КБ)."); return; }
@@ -501,30 +517,39 @@ async function decodeHash() {
 }
 
 function wire() {
-  document.querySelectorAll("#kind button").forEach(b => b.addEventListener("click", () => {
-    if (b.dataset.v === state.kind) return;
+  $("kindSel").addEventListener("change", e => {
+    const kind = e.target.value;
+    if (kind === state.kind) return;
     const keepVars = state.vars, keepTitle = state.title, keepUnits = state.units, keepSegs = state.segments;
-    state = blank(b.dataset.v);
-    state.vars = keepVars; state.title = keepTitle; state.units = keepUnits; state.segments = keepSegs;
+    const oneD = k => !EXTRA.includes(k);
+    const was = state.kind;
+    state = blank(kind);
+    state.vars = keepVars; state.title = keepTitle; state.units = keepUnits;
+    if (oneD(was) && oneD(kind)) state.segments = keepSegs;
     changed(true);
-  }));
+  });
   document.querySelectorAll("#units button").forEach(b => b.addEventListener("click", () => { state.units = b.dataset.v; changed(true); }));
   $("title").addEventListener("input", e => { state.title = e.target.value; changed(); });
   $("addVar").onclick = () => { state.vars.push({ name: "", value: "" }); changed(true); };
   $("tableVars").onclick = () => {
-    const want = [["P1", ""], ["P2", ""], ["P3", ""], ["M1", ""], ["M2", ""], ["M3", ""], ["m", ""], ["q", ""], ["a", ""], ["b", "2a"], ["c", "1a"]];
-    want.forEach(([n, v]) => { if (!state.vars.some(x => x.name === n)) state.vars.push({ name: n, value: v }); });
-    state.units = "t";
+    const n = parseInt($("variantNo").value, 10);
+    if (!applyVariant(n)) { alertMsg("Введите номер варианта от 1 до 20."); return; }
     changed(true);
   };
+  $("addNode").onclick = () => { addExtra("node"); changed(true); };
+  $("addMember").onclick = () => { addExtra("member"); changed(true); };
+  $("addSection").onclick = () => { addExtra("section"); changed(true); };
+  $("addMseg").onclick = () => { addExtra("mseg"); changed(true); };
   $("addSeg").onclick = () => { state.segments.push({ length: "a", k: "1" }); changed(true); };
   $("addSup").onclick = () => {
+    if (EXTRA.includes(state.kind)) { addExtra("support"); changed(true); return; }
     const n = state.segments.length;
     const used = new Set(state.supports.map(s => s.node));
     state.supports.push({ type: state.kind === "beam" ? (state.supports.length ? "roller" : "pin") : "fixed", node: used.has(0) ? n : 0 });
     changed(true);
   };
   $("addLoad").onclick = () => {
+    if (EXTRA.includes(state.kind)) { addExtra("load"); changed(true); return; }
     const type = LOAD_TYPES[state.kind][0][0];
     const l = { type, node: Math.min(1, state.segments.length), from: 0, to: 1, value: "", value2: "", dir: dirOptions(state.kind, type)[0][0] };
     fixLoad(l);

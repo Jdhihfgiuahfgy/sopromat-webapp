@@ -66,3 +66,8 @@ button.del { background: none; color: var(--muted); padding: 4px 6px; font-size:
   .seg button { font-size: 12.5px; }
   .grid2 { grid-template-columns: 1fr; }
 }
+.node-row { grid-template-columns: 34px 1fr 1fr 1fr auto; }
+.node3-row { grid-template-columns: 34px 1fr 1fr 1fr auto; }
+.node-row .tag, .node3-row .tag { text-align: center; }
+.variant-input { width: 90px; }
+[hidden] { display: none !important; }

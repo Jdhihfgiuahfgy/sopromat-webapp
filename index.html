@@ -10,11 +10,16 @@
 <body>
 <main id="app">
   <section class="card">
-    <div class="seg" id="kind">
-      <button data-v="beam">Изгиб балки</button>
-      <button data-v="axial">Растяжение</button>
-      <button data-v="torsion">Кручение</button>
-    </div>
+    <label class="field"><span>Тип задачи</span>
+      <select id="kindSel">
+        <option value="spatial">1 · Ломаный стержень (усилия в сечениях)</option>
+        <option value="axial">2 · Растяжение-сжатие</option>
+        <option value="torsion">3 · Кручение</option>
+        <option value="beam">4–7 · Изгиб балки</option>
+        <option value="frame">8 · Плоская рама</option>
+        <option value="inverse">9 · Нагрузки по эпюре M</option>
+      </select>
+    </label>
     <label class="field"><span>Название</span><input id="title" placeholder="Задача 4.6, вариант 18"></label>
     <div class="row-inline">
       <span class="muted">Нагрузки заданы в</span>
@@ -32,34 +37,63 @@
 
   <section class="card">
     <h2>Данные варианта</h2>
-    <p class="hint">Длины можно задавать через a: <b>b = 2a</b>. Нагрузки — числа из таблицы.</p>
+    <p class="hint">Длины можно задавать через a: <b>b = 2a</b>. Или подставьте вариант из таблицы 2 методички.</p>
     <div id="vars"></div>
     <div class="actions">
       <button class="ghost" id="addVar">+ величина</button>
-      <button class="ghost" id="tableVars">Как в таблице 2</button>
+      <input id="variantNo" type="number" min="1" max="20" placeholder="№ вар." class="variant-input">
+      <button class="ghost" id="tableVars">Подставить вариант</button>
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="cardNodes" hidden>
+    <h2>Узлы</h2>
+    <p class="hint" id="nodesHint"></p>
+    <div id="nodes"></div>
+    <div class="actions"><button class="ghost" id="addNode">+ узел</button></div>
+  </section>
+
+  <section class="card" id="cardMembers" hidden>
+    <h2>Стержни <span class="muted">(от узла — до узла)</span></h2>
+    <div id="members"></div>
+    <div class="actions"><button class="ghost" id="addMember">+ стержень</button></div>
+  </section>
+
+  <section class="card" id="cardMdiag" hidden>
+    <h2>Эпюра M по участкам</h2>
+    <p class="hint">Значения через M1, M2, M3: <b>-M1</b>, <b>2*M3</b>, <b>M2/2</b>. Плюс — ордината отложена вниз
+      (растянуты нижние волокна). Скачок в узле — разные значения в конце участка и в начале следующего.</p>
+    <div id="mdiag"></div>
+    <div class="actions"><button class="ghost" id="addMseg">+ участок</button></div>
+  </section>
+
+  <section class="card" id="cardSegments">
     <h2>Участки <span class="muted">(слева направо)</span></h2>
     <div id="segments"></div>
     <div class="actions"><button class="ghost" id="addSeg">+ участок</button></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="cardSupports">
     <h2>Опоры и шарниры</h2>
     <div id="supports"></div>
     <div class="actions"><button class="ghost" id="addSup">+ опора</button></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="cardLoads">
     <h2>Нагрузки</h2>
     <p class="hint">«?» в значении — неизвестная, найдётся из равновесия (стержень, вал).</p>
     <div id="loads"></div>
     <div class="actions"><button class="ghost" id="addLoad">+ нагрузка</button></div>
   </section>
 
-  <section class="card">
+  <section class="card" id="cardSections" hidden>
+    <h2>Сечения</h2>
+    <p class="hint">Название (I, II), участок и положение на нём — доля длины от начала (0.5 — посередине).</p>
+    <div id="sections"></div>
+    <div class="actions"><button class="ghost" id="addSection">+ сечение</button></div>
+  </section>
+
+  <section class="card" id="cardMaterial">
     <h2>Материал и условия</h2>
     <div id="material" class="grid2"></div>
   </section>
@@ -70,6 +104,7 @@
   </div>
   <pre id="debug" hidden></pre>
 </main>
+<script src="extra.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
